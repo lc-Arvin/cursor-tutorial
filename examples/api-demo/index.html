@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理器 - Cursor API 实践案例</title>
+    <style>
+        /* 基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        /* 容器布局 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 头部样式 */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        /* 控制面板 */
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #999;
+            display: none;
+        }
+
+        .search-clear:hover {
+            color: #666;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2a5298, #1e3c72);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(42, 82, 152, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #2a5298;
+            color: #2a5298;
+        }
+
+        .btn-outline:hover {
+            background: #2a5298;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+
+        /* 加载指示器 */
+        .loading-indicator {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2a5298;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 用户卡片网格 */
+        .users-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        /* 用户卡片样式 */
+        .user-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .user-card.fade-in {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .user-avatar {
+            position: relative;
+            margin-right: 15px;
+        }
+
+        .user-avatar img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .online-status {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .online-status.online {
+            background: #28a745;
+        }
+
+        .online-status.offline {
+            background: #dc3545;
+        }
+
+        .user-info h3 {
+            font-size: 1.4em;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .user-username {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .user-email a {
+            color: #2a5298;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+
+        .user-email a:hover {
+            text-decoration: underline;
+        }
+
+        /* 用户详细信息 */
+        .user-details {
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .detail-value {
+            color: #333;
+            font-size: 0.9em;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-word;
+        }
+
+        .detail-value a {
+            color: #2a5298;
+            text-decoration: none;
+        }
+
+        .detail-value a:hover {
+            text-decoration: underline;
+        }
+
+        /* 用户操作按钮 */
+        .user-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* 空状态样式 */
+        .empty-state, .error-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .empty-icon, .error-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+
+        .empty-state h3, .error-state h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .empty-state p, .error-state p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+            margin: 10px 0;
+        }
+
+        /* 模态框样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 800px;
+            max-height: 90vh;
+            width: 90%;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(50px) scale(0.9);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-header {
+            padding: 25px 30px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5em;
+            color: #333;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .modal-body {
+            padding: 20px 30px 30px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        /* 用户详细信息模态框 */
+        .user-details-modal {
+            text-align: center;
+        }
+
+        .user-profile {
+            margin-bottom: 30px;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-bottom: 15px;
+            border: 4px solid #fff;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .profile-subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            text-align: left;
+        }
+
+        .detail-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .detail-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2em;
+        }
+
+        .detail-section p {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        /* 文章列表样式 */
+        .posts-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .post-item {
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .post-item:hover {
+            border-color: #2a5298;
+            box-shadow: 0 4px 12px rgba(42, 82, 152, 0.1);
+        }
+
+        .post-header {
+            margin-bottom: 15px;
+        }
+
+        .post-title {
+            font-size: 1.2em;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .post-meta {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .post-excerpt {
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .post-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 消息提示样式 */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1100;
+            animation: slideInRight 0.3s ease;
+            max-width: 350px;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-message.fade-out {
+            animation: slideInRight 0.3s ease reverse;
+        }
+
+        .toast-success {
+            background: #28a745;
+        }
+
+        .toast-error {
+            background: #dc3545;
+        }
+
+        .toast-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .toast-info {
+            background: #17a2b8;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .users-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .user-card {
+                padding: 20px;
+            }
+
+            .user-actions {
+                flex-direction: column;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 20px;
+            }
+
+            .modal-header, .modal-body {
+                padding: 20px;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .post-meta {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .user-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .user-avatar {
+                margin-right: 0;
+                margin-bottom: 15px;
+            }
+
+            .detail-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+
+            .detail-value {
+                max-width: 100%;
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>👥 用户管理器</h1>
+            <p>Cursor AI 编程助手实践案例 - API 数据获取与管理</p>
+        </header>
+
+        <!-- 控制面板 -->
+        <div class="controls">
+            <div class="controls-row">
+                <div class="search-box">
+                    <input type="text" 
+                           class="search-input" 
+                           placeholder="搜索用户姓名、用户名、邮箱或公司..."
+                           id="searchInput">
+                    <button class="search-clear" id="searchClear">✕</button>
+                </div>
+                
+                <button class="btn btn-primary" onclick="userManager.fetchUsers(true)">
+                    🔄 刷新数据
+                </button>
+                
+                <button class="btn btn-secondary" onclick="userManager.clearCache()">
+                    🧹 清空缓存
+                </button>
+            </div>
+        </div>
+
+        <!-- 加载指示器 -->
+        <div class="loading-indicator" id="loading-indicator">
+            <div class="spinner"></div>
+            <p>正在加载用户数据...</p>
+        </div>
+
+        <!-- 用户列表容器 -->
+        <div class="users-grid" id="users-container">
+            <!-- 用户卡片将在这里动态生成 -->
+        </div>
+    </div>
+
+    <script src="user-manager.js"></script>
+    <script>
+        // 初始化用户管理器
+        const userManager = new UserDataManager();
+        
+        // 页面加载完成后自动获取用户数据
+        document.addEventListener('DOMContentLoaded', () => {
+            userManager.fetchUsers();
+            setupSearchFunctionality();
+        });
+        
+        /**
+         * 设置搜索功能
+         */
+        function setupSearchFunctionality() {
+            const searchInput = document.getElementById('searchInput');
+            const searchClear = document.getElementById('searchClear');
+            let searchTimeout;
+            
+            // 实时搜索
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                
+                // 显示/隐藏清除按钮
+                searchClear.style.display = query ? 'block' : 'none';
+                
+                // 防抖搜索
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    const filteredUsers = userManager.searchUsers(query);
+                    userManager.displayUsers(filteredUsers);
+                    
+                    // 更新搜索结果提示
+                    if (query && filteredUsers.length !== userManager.users.length) {
+                        userManager.showMessage(
+                            `找到 ${filteredUsers.length} 个匹配的用户`, 
+                            'info'
+                        );
+                    }
+                }, 300);
+            });
+            
+            // 清除搜索
+            searchClear.addEventListener('click', () => {
+                searchInput.value = '';
+                searchClear.style.display = 'none';
+                userManager.displayUsers();
+                searchInput.focus();
+            });
+            
+            // 回车搜索
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const query = e.target.value.trim();
+                    const filteredUsers = userManager.searchUsers(query);
+                    userManager.displayUsers(filteredUsers);
+                }
+                
+                // ESC 清除搜索
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    searchClear.style.display = 'none';
+                    userManager.displayUsers();
+                    searchInput.blur();
+                }
+            });
+        }
+        
+        // 全局键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + K 聚焦搜索框
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+            
+            // Ctrl/Cmd + R 刷新数据
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                userManager.fetchUsers(true);
+            }
+        });
+        
+        // 页面可见性变化时的处理
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                // 页面重新可见时，检查缓存是否过期
+                const cacheStats = userManager.getCacheStats();
+                if (cacheStats.size === 0 && userManager.users.length === 0) {
+                    userManager.fetchUsers();
+                }
+            }
+        });
+        
+        // 网络状态监听
+        window.addEventListener('online', () => {
+            userManager.showMessage('网络连接已恢复', 'success');
+            if (userManager.users.length === 0) {
+                userManager.fetchUsers();
+            }
+        });
+        
+        window.addEventListener('offline', () => {
+            userManager.showMessage('网络连接已断开，将使用缓存数据', 'warning');
+        });
+        
+        // 开发模式调试工具
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('🔧 开发模式已启用');
+            
+            // 全局调试对象
+            window.debugUserManager = {
+                manager: userManager,
+                getUsers: () => userManager.users,
+                getCache: () => userManager.getCacheStats(),
+                clearAll: () => {
+                    userManager.clearCache();
+                    userManager.users = [];
+                    userManager.displayUsers();
+                    console.log('🧹 所有数据已清空');
+                },
+                loadSample: () => {
+                    userManager.fetchUsers();
+                    console.log('📝 已加载示例数据');
+                }
+            };
+            
+            console.log('🛠️ 调试工具已加载，使用 window.debugUserManager 访问');
+        }
+    </script>
+</body>
+</html>
